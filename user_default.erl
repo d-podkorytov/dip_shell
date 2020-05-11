@@ -70,13 +70,14 @@ nice_view({ok,L}) when is_list(L)-> {ok,string:tokens(L,"\n")};
 nice_view({L,[]}) when is_list(L)-> string:tokens(L,"\n");
 nice_view({L})    when is_list(L)->    string:tokens(L,"\n");
 nice_view(A) ->   %io:format("niceview(A) A=~p ~n",[A]),
-                  A.      
-ssh(1)->ssh("alarm.media",10022,"dmitry").
-
+                  A. 
+                       
 ssh(Addr,Port,User)->
  ssh:start(),
  %{ok, ConRef} = 
  ssh:shell(Addr,Port,[{user,User}]).
+
+scp(From,To,Port)  -> os:cmd("scp -P "++integer_to_list(Port)++" "++From++" "++To).
 
 rec_loop(Acc)->
      receive
@@ -105,8 +106,6 @@ rec_loop(Acc)->
 
 ssh_exec()-> {addr,port,user,cmd}.
 
-ssh_exec(1,Pass,Cmd)-> ssh_exec("alarm.media",10022,"dmitry",Pass,Cmd).
-
 ssh_exec(Addr,Port,User,Pass,Cmd)->
 % flush() or listen messages
  %spawn(fun()->  
@@ -118,9 +117,6 @@ ssh_exec(Addr,Port,User,Pass,Cmd)->
 % ssh_connection:reply_request(ConRef, true, Status,SshConnectionChannelRef),
  rec_loop([]).
  %end). 
-
- %{ok, ConRef} = 
- %ssh:shell(Addr,Port,[{user,User}]).
 
 scp(From,To)  -> todo.
 
@@ -135,7 +131,7 @@ t()-> {date(),time()}.
 
 app(App) -> application:ensure_all_started(App).
 
-p(Exp) -> io:format("~p~n",[Exp]).
+%p(Exp) -> io:format("~p~n",[Exp]).
 
 s(Module) -> Module:start().
 
@@ -261,8 +257,8 @@ name()->
  {ok,N}=inet:gethostname(),N.
 
 
-ip_stat()-> L = inet:stats(),
-  lists:foldl(fun(A,Acc)-> maps:put(A,inet:getstat(A),Acc) end,#{},L).       
+%ip_stat()-> L = inet:stats(),
+%  lists:foldl(fun(A,Acc)-> maps:put(A,inet:getstat(A),Acc) end,#{},L).       
 
 %% lists operations
 foldl(F2,Acc,List)-> lists:foldl(F2,Acc,List). 
