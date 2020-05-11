@@ -241,6 +241,12 @@ starts(Name,Ext)->
 inside(Name,Ext)-> 
 % io:format("~p ~p ~n",[length(Name)-length(Ext),string:str(Name,Ext)]),
  string:str(Name,Ext) >= 1.
+
+line_to_tuple(Line,Separators) -> list_to_tuple(string:tokens(Line,Separators)).
+
+line_to_tuple(Line) -> line_to_tuple(Line," \t").
+
+csv_line_to_tuple(Line) -> line_to_tuple(Line,",").
  
 init_prompt()   ->
       %code:load_abs("./user_default"), 
@@ -248,6 +254,7 @@ init_prompt()   ->
       shell:results(1000), 
       shell:prompt_func({?MODULE,hook}).
 
+%command prompt
 hook(Arg)-> {ok,CWD}=file:get_cwd(),
             %io:format("~p-~p-~p-~p-~p>",[{date(),time()},name(),ip(),node(),CWD]), % long format for prompt
             io:format("~p-~p-~p>",[ip(),node(),CWD]),
