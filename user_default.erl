@@ -146,9 +146,17 @@ lf(F2)->
  {ok,L} = l(),
   lists:foldl(F2,[],L).
 
+lm(F1)->
+ {ok,L} = l(),
+  lists:map(F1,L).
+
 lf(Path,F2)->
  {ok,L} = l(Path),
   lists:foldl(F2,[],L).
+
+lm(Path,F1)->
+ {ok,L} = l(Path),
+  lists:map(F1,L).
 
 le()-> lext(".erl").
 la()-> lext(".app").

@@ -98,25 +98,29 @@ Directory list functions
 
  l().
 
- l("Arg").
+ l(Ext). use like l(".txt").
 
- lf(Func/1).
+ lf(Func/2).       foldl for ls
 
- lf("From","To").
+ lf("Path",Func/2). foldl for ls with given path.
 
- le().
+ lm(Func/2).       map for ls
 
- la().
+ lm("Path",Func/2). map for ls with given path.
 
- lc().
+ le(). ls *.erl
 
- lt().
+ la(). ls *.app
 
- lh().
+ lc(). ls *.config
 
- lb().
+ lt(). ls *.txt
 
- lb("Arg").
+ lh(). ls *.hrl
+
+ lb(). ls *.beam
+
+ lb(Path). 
 
  lsrc().
 
