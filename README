@@ -1,0 +1,223 @@
+Erlang VM CLI extension
+
+OVERVIEW
+
+Dip_sh is extension for ERLANG OTP CLI.
+It made for doing some things without jumping from VM to OS shell.
+For example it can handle text files, copy, move or delete files, zip, unzip archives,
+download URLS, dump erlang term to text file or load terms from file.
+Also it have a rudimentary, but usable build system for projects. 
+
+COMPILATION:
+ erl -make
+
+RUN:
+ $erl
+ 1> dip_shell:init().
+
+INSTALLATION
+
+It needs only if you desided to run dip_sh for all erl calls:
+
+1)Run erlang VM
+ $erl
+
+2) Type inside VM: 
+ 1> dip_shell:install().
+
+ You will get command line with prompt like:
+  
+{{2020,5,6},{21,45,29}}-"de"-[{192,168,8,100}]-nonode@nohost>> 
+
+Will get message like
+file ~/.erlang was created   
+ok
+
+Now dip_sh will be start automatically for all erl runs.
+
+DEINSTALLATION
+
+Remove line  
+"code:load_abs("/home/es/w/dip_shell/user_default"),user_default:init_prompt()."
+from your's ~/.erlang file or just do 
+$rm ~/.erlang
+but removing whole file is not so safe like carefully edit it.
+
+DIP_SH COMMANDS
+
+ install_readme().
+ install().
+
+ t().
+
+ a("Arg").
+
+ p("Arg").
+
+ s("Arg").
+
+ c().    alias for erlc *.erl
+ make(). alias for make:all().  
+
+ mkdir("Name").
+
+ df().      alias for OS command df
+ du().      alias for OS command du *
+ netstat(). alias for netstat -an
+
+ l().
+
+ l("Arg").
+
+ lf("Arg").
+
+ lf("From","To").
+
+ le().
+
+ la().
+
+ lc().
+
+ lt().
+
+ lh().
+
+ lb().
+
+ lb("Arg").
+
+ lsrc().
+
+ lsrc("Arg").
+
+ lsrc("From","To").
+
+ lprj("From","To").
+
+ src().
+
+ prj().
+
+ fetch_build_cmd("Arg").
+
+ lext("Arg").
+
+ lext("From","To").
+
+ lext/3 
+ lf2("From","To").
+
+ ends("line","ne").
+
+ starts("line","li").
+
+ inside("line","in").
+
+ init_prompt().
+
+ hook(history).
+
+ ip(). It show host ip address.
+
+ name(). It show VM name.
+
+ ip_stat().
+
+ foldl/3  Is alias for lists:foldl
+ map(F/1,List). Is alias for lists:map
+
+ reverse(List). reverse List
+
+ zip_ls("File.zip"). return content for zip file.
+
+ zip("File.zip",Files_list). It zip list of files.
+
+ zip("Dir"). zip folder Dir to Dir.zip file
+
+ zip(). zip current folder and store it as ../current_folder_name.zip
+
+ unzip("file.zip"). unzip file
+
+ untgz("file.tgz"). untar file.tgz
+
+ untar("file.tar"). untar file.tar
+
+ http("From","To").
+
+ http_fetch("URL").
+
+ http_fetch/3 
+
+ http_tests().
+
+ http_test("Arg").
+
+ http_test().
+
+ transform_name("Arg").
+
+ post_transform("Arg").
+
+ do_build("Arg").
+
+ open_file("Arg").
+
+ close_file("Arg").
+
+ consult_file("Arg").
+
+ read_file("Arg").
+
+ format_file/3 out("Arg").
+
+ outs("Arg").
+
+ out("From","To").
+
+ outs("From","To").
+
+ write_file("From","To").
+
+ cmd("OS command"). run Operating System's command 
+
+ cp("From","To"). copy file From -> To
+
+ mv("From","To"). rename file
+
+ rm("Arg").       remove file
+
+ eval("Script").     run script
+
+ ed("Arg").          run editor for file
+
+ map_file_lines(fun(A) -> A end,"Text_file"). run function of one argument for each line of given text file.
+
+ fold_file_lines(F2,Acc,"Text_file")  foldl for text file
+
+ try_f0(F0). is alias for try F0() of ... end
+
+ try_f1(F1,Arg). is alias for try F1(Arg) of ... end
+
+ help(). return dip_sh functions 
+
+ build(). build project
+
+ download_deps(). download project dependencies
+
+ upload(). publish project
+
+ exit().
+
+ erl_add_patha("Arg"). add path for loading modules
+
+ erl_get_path(). return all system pathes for loading modules.
+
+ exports(). return modules exports for current directory
+
+ exports("path"). return modules exports for directory "path"
+
+ system_export_to_file(). return all modules exports for whole ERLANG OTP 
+
+ export_to_file("File"). 
+
