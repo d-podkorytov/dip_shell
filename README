@@ -152,6 +152,12 @@ Predicates for string filtration:
 
  inside("line","in").return true for line with given string inside
 
+ line_to_tuple(Line,Separators) -> list_to_tuple(string:tokens(Line,Separators)).
+
+ line_to_tuple(Line) -> line_to_tuple(Line," \t").
+
+ csv_line_to_tuple(Line). Convertation CSV line to tuple
+
  init_prompt(). Init command prompt
 
  hook(history).
