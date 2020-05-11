@@ -118,8 +118,6 @@ ssh_exec(Addr,Port,User,Pass,Cmd)->
  rec_loop([]).
  %end). 
 
-scp(From,To)  -> todo.
-
 % open pipes
 
 from({file,Name})->{ok,F}=file:open(Name,[read]),F;
@@ -255,7 +253,6 @@ ip()-> {ok,L}= inet:getif(),
 
 name()->
  {ok,N}=inet:gethostname(),N.
-
 
 %ip_stat()-> L = inet:stats(),
 %  lists:foldl(fun(A,Acc)-> maps:put(A,inet:getstat(A),Acc) end,#{},L).       
@@ -402,10 +399,10 @@ case Ext of
 end.
   
 %% file operations
-open_file(FileName)     -> {ok,F} = file:open(FileName,[write]),F.
+open_file(FileName)     -> {ok,F} = file:open(to_filename(FileName),[write]),F.
 close_file(File)        -> file:close(File).
-consult_file(FileName)  -> {ok,L} = file:consult(FileName),L.
-read_file(FileName)     -> {ok,L} = file:read_file(FileName),L.
+consult_file(FileName)  -> {ok,L} = file:consult(to_filename(FileName)),L.
+read_file(FileName)     -> {ok,L} = file:read_file(to_filename(FileName)),L.
 format_file(File,Mask,L)-> io:format(File,Mask,L).
 out(Term) ->  io:format("~p~n",[Term]).
 outs(Term)->  io:format("~ts~n",[Term]).
@@ -420,9 +417,14 @@ call(Node,Mod,Fun,Arg)   -> rpc:call(Node,Mod,Fun,Arg).
 mcall(Nodes,Mod,Fun,Arg) -> rpc:multicall(Nodes,Mod,Fun,Arg).
 mcall(Mod,Fun,Arg)       -> rpc:multicall(Mod,Fun,Arg).
  
-cp(From,To) -> file:copy(From,To).
-mv(From,To) -> file:rename(From,To).
-rm(Path)    -> file:delete(Path).
+cp(From,To) -> file:copy(to_filename(From),to_filename(To)).
+mv(From,To) -> file:rename(to_filename(From),to_filename(To)).
+rm(Path)    -> file:delete(to_filename(Path)).
+
+to_filename(A) when is_atom(A) -> atom_to_list(A);
+to_filename(A) when is_binary(A) -> unicode:characters_to_list(A);
+to_filename(A) when is_integer(A) -> integer_to_list(A);
+to_filename(A) -> A.
 
 %% run script
 eval(Path)  -> file:eval(Path).
