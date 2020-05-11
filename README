@@ -1,6 +1,22 @@
 Erlang VM CLI extension
 
+GOAL
+
+The goal of project is more comfortable working inside erl's CLI.
+
 OVERVIEW
+
+For more comfortable working inside erl the Dip_shell project have:
+1) Recomputable prompt;
+2) Trivial but usable internal build system;
+3) Rudimental orchestration calls such as run functions of modules 
+   with given argument on whole cluster or on given nodes;
+4) Welcome script , for runing it when erl start;
+5) Runing SSH shell or execute SSH command in remote host parse and handle results; 
+6) Iteraction with OS of node, run OS commands, copy, move or delete files;
+7) Fetch files by HTTP, unzip/zip, tat/untar functions;
+8) It can interact with user by functional style for works inside ERLANG VM; 
+9) Short aliases for frequently using commands and functions calls. 
 
 Dip_sh is extension for ERLANG OTP CLI.
 It made for doing some things without jumping from VM to OS shell.
@@ -10,10 +26,6 @@ Also it have a rudimentary, but usable build system for projects.
 
 COMPILATION:
  erl -make
-
-RUN:
- $erl
- 1> dip_shell:init().
 
 INSTALLATION
 
@@ -27,7 +39,7 @@ It needs only if you desided to run dip_sh for all erl calls:
 
  You will get command line with prompt like:
   
-{{2020,5,6},{21,45,29}}-"de"-[{192,168,8,100}]-nonode@nohost>> 
+[{192,168,8,100}]-nonode@nohost-/home/user>> 
 
 Will get message like
 file ~/.erlang was created   
@@ -45,16 +57,33 @@ but removing whole file is not so safe like carefully edit it.
 
 DIP_SH COMMANDS
 
- install_readme().
- install().
+1) Function calls:
+ 
+ call(Module,Func,Args) is apply(Module,Func,Args) or call Module:Func(Args);
 
- t().
+ mcall(Nodes,Module,Func,Args) is rpc:mcall(Nodes,Modules,Module,Func,Args) 
+                               or calling Module:Func(Args) for given Nodes;
 
- a("Arg").
+ mcall(Module,Func,Args) is rpc:mcall(Modules,Module,Func,Args) 
+                         or calling Module:Func(Args) for each node;
 
- p("Arg").
+ aliases(). Show all aliases, read it from file ~/.dip_aliases
 
- s("Arg").
+ a("Alias Name"). Run alias by given name from file ~/.dip_aliases
+
+Example:
+
+ [{192,168,8,100}]-nonode@nohost-"/home/es/w/dip_shell">aliases().
+[{date,{os,cmd,["date"]}},
+ {nodes_date,{cluster,os,cmd,["date"]}},
+ {welcome,[{cluster,os,cmd,["date"]},
+           {cluster,erlang,node,[]},
+           {os,cmd,["df -H"]}]}]
+
+[{192,168,8,100}]-nonode@nohost-"/home/es/w/dip_shell">a(date).  
+["Mon 11 May 2020 07:18:46 AM PDT"]
+
+ s(Mosule). Module:start()
 
  c().    alias for erlc *.erl
  make(). alias for make:all().  
@@ -65,11 +94,13 @@ DIP_SH COMMANDS
  du().      alias for OS command du *
  netstat(). alias for netstat -an
 
+Directory list functions
+
  l().
 
  l("Arg").
 
- lf("Arg").
+ lf(Func/1).
 
  lf("From","To").
 
@@ -106,15 +137,18 @@ DIP_SH COMMANDS
  lext("From","To").
 
  lext/3 
+
  lf2("From","To").
 
- ends("line","ne").
+Predicates for string filtration:
 
- starts("line","li").
+ ends("line","ne"). return true for line with given end
 
- inside("line","in").
+ starts("line","li"). return true for line with given start string
 
- init_prompt().
+ inside("line","in").return true for line with given string inside
+
+ init_prompt(). Init command prompt
 
  hook(history).
 
@@ -122,10 +156,13 @@ DIP_SH COMMANDS
 
  name(). It show VM name.
 
- ip_stat().
+ netstat(). Show network activity by netstat -an
 
- foldl/3  Is alias for lists:foldl
- map(F/1,List). Is alias for lists:map
+ List operatios:
+
+ foldl/3  Alias for lists:foldl/3
+
+ map(F/1,List). Alias for lists:map/2
 
  reverse(List). reverse List
 
@@ -161,23 +198,25 @@ DIP_SH COMMANDS
 
  do_build("Arg").
 
- open_file("Arg").
+ open_file("FileName").
 
- close_file("Arg").
+ close_file(File).
 
- consult_file("Arg").
+ consult_file("FileName").
 
  read_file("Arg").
 
- format_file/3 out("Arg").
+ format_file/3 
+
+ out("Arg").
 
  outs("Arg").
 
- out("From","To").
+ out(File,"To").
 
- outs("From","To").
+ outs(File,"To").
 
- write_file("From","To").
+ write_file(File,"Arg").
 
  cmd("OS command"). run Operating System's command 
 
@@ -187,7 +226,7 @@ DIP_SH COMMANDS
 
  rm("Arg").       remove file
 
- eval("Script").     run script
+ eval("Script").     run erlang script
 
  ed("Arg").          run editor for file
 
@@ -199,7 +238,7 @@ DIP_SH COMMANDS
 
  try_f1(F1,Arg). is alias for try F1(Arg) of ... end
 
- help(). return dip_sh functions 
+ help(). return functions 
 
  build(). build project
 
@@ -221,3 +260,11 @@ DIP_SH COMMANDS
 
  export_to_file("File"). 
 
+ SSH
+
+ ssh(Addr,Port,User). Run SSH shell
+
+ scp(From,To,Port).   Copy files over SSH
+
+ ssh_exec(Addr,Port,User,Pass,Cmd). Run OS command by SSH
+ 
