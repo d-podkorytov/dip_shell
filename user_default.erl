@@ -34,7 +34,14 @@ home()->
    false -> os:getenv("USERPROFILE");% user's root for Windows
    R0->R0
  end.
- 
+
+get_env()-> 
+  case os:getenv() of
+   L->lists:map(fun(A)->list_to_tuple(string:tokens(A,"=")) end, L)
+ end.
+
+get_env(Key)-> proplists:get_value(Key,get_env()).
+  
 % show aliases
 aliases()-> 
   {ok,PL} = file:consult(home()++"/.dip_aliases"),
@@ -46,16 +53,25 @@ aliases()->
 %         or do RPC call for {Node,Mod,Func,Arg}
 %         or {Nodes,Mod,Func,Arg}
 %         or {cluster,Mod,Func,Arg}
-       
-a(Key) -> case proplists:get_value(Key,aliases()) of
-          L when is_list(L)   -> lists:map(fun({Mod,Fun,Arg})         -> nice_view(apply(Mod,Fun,Arg));
+a(Key) ->    a(Key,[],fun(_,A)->A end).
+%a(Key,Args) -> a(Key,Args,fun(Args,A)->A end).       
+a(Key,Args,F2) -> 
+          case proplists:get_value(Key,aliases()) of
+          L when is_list(L)   -> lists:map(fun({Mod,Fun})         -> nice_view(apply(Mod,Fun,Args));
+                                              ({cluster,Mod,Fun})   -> lists:zip([node()|nodes()],nice_view(mcall(Mod,Fun,Args)));
+
+                                              ({Mod,Fun,Arg})         -> nice_view(apply(Mod,Fun,Arg));
                                               ({cluster,Mod,Fun,Arg}) -> lists:zip([node()|nodes()],nice_view(mcall(Mod,Fun,Arg)));
                                               ({Nodes,Mod,Fun,Arg}) when is_list(Nodes) -> 
                                                                          lists:zip([node()|nodes()],nice_view(mcall(Nodes,Mod,Fun,Arg)));  
                                               ({Node,Mod,Fun,Arg})    -> {Node,nice_view(rpc:call(Node,Mod,Fun,Arg))};
                                               (A) -> {"can not evaluate",A}
                                            end         
-                                           ,L); 
+                                           ,L);
+
+           ({Mod,Fun})           -> nice_view(apply(Mod,Fun,Args));  
+           ({cluster,Mod,Fun})   -> lists:zip([node()|nodes()],nice_view(mcall(Mod,Fun,Args)));
+
            {Mod,Fun,Arg}           -> nice_view(apply(Mod,Fun,Arg));
            {cluster,Mod,Fun,Arg}   -> lists:zip([node()|nodes()],nice_view(mcall(Mod,Fun,Arg)));
            {Nodes,Mod,Fun,Arg} when is_list(Nodes) -> 
@@ -124,8 +140,22 @@ from({file,Name})->{ok,F}=file:open(Name,[read]),F;
 from(pid)->receive Msg->Msg after 2000-> timeout end.
 
 to({file,Name})  ->{ok,F}=file:open(Name,[write]),F.
+
+% write to file session or tree of calls
+write_do_file_session(Name,F1) when is_function(F1,1) -> F1(Name);
+write_do_file_session(Name,F0) when is_function(F0,0) -> F0();
+  
+write_do_file_session(Name,{Mod,F1,Arg})             -> apply(Mod,F1,Arg);
+write_do_file_session(Name,{Node,Mod,F1,Arg})        -> rpc:call(Node,Mod,F1,Arg);
+  
+write_do_file_session(Name,[])            -> [];
+write_do_file_session(Name,L) when is_list(L)  -> lists:map(fun(A) -> write_do_file_session(Name,A) end, L).  
+
+write_file_session(Name,Functor)  ->{ok,F}=file:open(Name,[write]),
+                                    write_do_file_session(Name,Functor),  
+                                    file:close(F).
  
-t()-> {date(),time()}.
+%t()-> {date(),time()}.
 
 app(App) -> application:ensure_all_started(App).
 
@@ -259,13 +289,16 @@ hook(Arg)-> {ok,CWD}=file:get_cwd(),
             %io:format("~p-~p-~p-~p-~p>",[{date(),time()},name(),ip(),node(),CWD]), % long format for prompt
             io:format("~p-~p-~p>",[ip(),node(),CWD]),
             "".
+
+%get host time
 clock()->{date(),time()}.
-            
+% get host ip            
 ip()-> {ok,L}= inet:getif(),
    lists:foldl(fun({{127,0,0,1},_,_},Acc)  -> Acc;
                   ({A,_,_},Acc) -> [A|Acc] 
                end,[],L).
 
+% get host name
 name()->
  {ok,N}=inet:gethostname(),N.
 

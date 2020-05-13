@@ -70,6 +70,7 @@ DIP_SH COMMANDS
  aliases(). Show all aliases, read it from file ~/.dip_aliases
 
  a("Alias Name"). Run alias by given name from file ~/.dip_aliases
+ a("Alias Name",Args). Run alias by given name from file ~/.dip_aliases with given arguments for call
 
 Example:
 
@@ -83,12 +84,16 @@ Example:
 [{192,168,8,100}]-nonode@nohost-"/home/es/w/dip_shell">a(date).  
 ["Mon 11 May 2020 07:18:46 AM PDT"]
 
+ get_env(). Get OS environment.
+
+ get_env(Variable). Get OS environment by given name Variable, for example get_env("HOME"). 
+
  s(Mosule). Module:start()
 
  c().    alias for erlc *.erl
  make(). alias for make:all().  
 
- mkdir("Name").
+ mkdir(Name). Make directory.
 
  df().      alias for OS command df
  du().      alias for OS command du *
@@ -227,6 +232,9 @@ Predicates for string filtration:
  outs(File,"To").
 
  write_file(File,"Arg").
+
+ write_session_file(File,Session). write file session as tree of calls
+
 
  cmd("OS command"). run Operating System's command 
 
