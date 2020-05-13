@@ -153,7 +153,10 @@ write_do_file_session(File,L) when is_list(L)  -> lists:map(fun(A) -> write_do_f
 
 write_file_session(Name,F0) when is_function(F0,0) ->
                                     {ok,F}=file:open(Name,[write]),
-                                    file:write(F,F0()),  
+                                    case F0() of
+                                     Bin when is_binary(Bin) -> file:write(F,Bin);
+                                     Term -> io:format(F,"~p.~n",[Term])
+                                    end,  
                                     file:close(F);
 
 write_file_session(Name,Functor)  ->{ok,F}=file:open(Name,[write]),
