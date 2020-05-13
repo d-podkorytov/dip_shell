@@ -2,6 +2,7 @@
 -compile(export_all).
 
 -define(EDITOR,"ed").
+-define(HELP(Cmd,Desc),io:format("~s:\t~s~n",[Cmd,Desc])).
 
 % add your own commands to Erlang VM shell
 %deinstall()->
@@ -357,11 +358,12 @@ grep(What)  ->
 % run editor
 ed(Files) when is_tuple(Files) -> map(fun(A) -> ed(A) end, tuple_to_list(Files));
 ed(File) ->
- case {get_env("OS"), get_env("XDG_SESSION_TYPE")} of
-  {"Windows_NT",_} -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
+ case {get_env("OS"), get_env("XDG_SESSION_TYPE"),os:type()} of
+  {"Windows_NT",_,_} -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
                       spawn( fun()-> os:cmd("notepad " ++ to_filename(File)) end);
-
-  {_,"x11"}        -> spawn( fun()-> os:cmd("mousepad " ++to_filename(File)) end)
+  
+  {_,_,{unix,darwin}}    -> spawn( fun()-> os:cmd("textedit " ++to_filename(File)) end);
+  {_,"x11",{unix,_} }    -> spawn( fun()-> os:cmd("mousepad " ++to_filename(File)) end)
 
  end.
 
@@ -564,6 +566,20 @@ fold_lines_loop(File,F2,Acc)->
       fold_lines_loop(File,F2,F2(R,Acc))  
  end.
 
+%% safe call apply(M,F,A).
+try_mfa({M,F,A})-> try apply(M,F,A) of
+             R->R
+             catch
+              Err:Reason-> {Err,Reason,{M,F,A}}
+             end.  
+
+%% safe call apply(M,F,A).
+try_nmfa({N,M,F,A})-> try rpc:call(N,M,F,A) of
+             R->R
+             catch
+              Err:Reason-> {Err,Reason,{M,F,A}}
+             end.  
+
 %% safe call lambda function without arguments 
 try_f0(F0)-> try F0() of
              R->R
@@ -648,6 +664,123 @@ trace_off(Mod,Fun)->dbg:ctp({Mod,Fun,'_'}).
 
 tracer_add_node(Node)->dbg:n(Node).
 
-tracer_example()->
- "tracer_on(),trace(lists,seq),lists:seq(1,10),trace_off(lists,seq),lists:seq(1,10).".                 
- 
+tracer(example)->
+ "tracer_on(),trace(lists,seq),lists:seq(1,10),trace_off(lists,seq),lists:seq(1,10).";                 
+
+tracer(help)->
+ ?HELP("tracer_on()","Start tracer"),
+ ?HELP("tracer_off()","Stop tracer"), 
+
+ ?HELP("trace(Mod,Fun)","Trace all Mod:Func(...) calls"),
+ ?HELP("trace(Module)","Trace all Module calls"),
+ ?HELP("trace(Pid)","TODO"),
+
+ ?HELP("trace_flag(Mod,Flag)","Set trace flag for module Mod"),
+ ?HELP("trace_flag(Mod,Fun,Flag)","Set trace flag for Mod:Fun calls"),
+
+ ?HELP("trace_off(Module)","Turn off tracing for Module"),
+ ?HELP("trace_off(Mod,Fun)","Turn off tracing Mod:Fun calls"),
+
+ ?HELP("tracer_add_node(Node)","Add node for tracing"),
+
+ ?HELP("tracer(example)","Show using of tracer ").                 
+
+process_loop(F1) -> spawn(fun()-> recv_loop(F1) end).
+
+recv_loop(F1)->
+ receive
+  Msg -> try F1(Msg) of R->R 
+         catch Err:Reason -> io:format("recv_loop catch ~p:~p~n",[Err,Reason]) 
+         end 
+ end,
+ recv_loop(F1).
+
+recv_loop(Node,Mod,Fun)->
+ receive
+  Msg -> try rpc:async_call(Node,Mod,Fun,[Msg]) of R->R 
+         catch Err:Reason -> io:format("recv_loop catch ~p:~p~n",[Err,Reason]) 
+         end 
+ end,
+ recv_loop(Node,Mod,Fun).
+
+% get messages in loop and call given function (with arity 4) from rpc module
+% RPC_FUC4 can be  
+% [ {block_call,4},
+%   {server_call,4},
+%   {eval_everywhere,4},
+%   {multicall,4},
+%   {async_call,4},
+%   {cast,4},
+%   {call,4}
+% or any function of such module
+% ]
+% Transformer is function/1 for mapping incoming messages to RPC_FUN/4 
+% arguments requiremens, so it shouldbe list with four arguments  
+% or with arity of function from rpc module
+recv_loop(Node,RPC_FUN4,Mod,Fun,Transformer)->
+ receive
+  Msg -> try apply(rpc,RPC_FUN4,[Node,Mod,Fun,Transformer(Msg)]) of 
+          R->R 
+         catch Err:Reason -> io:format("recv_loop catch ~p:~p~n",[Err,Reason]) 
+         end 
+ end,
+ recv_loop(Node,RPC_FUN4,Mod,Fun,Transformer).
+
+processes(help)->
+  ?HELP("process_loop(F1)","Start background endless loop with message hanler such as fun(Msg)-> ... end"),
+  ?HELP("recv_loop(F1)","Same as above but it starts in foregroud"),
+  ?HELP("recv_loop(Node,Mod,Fun,Transformer)","Foreground endless loop , it reads messages and asyncronically handle it inside given node"),
+  ?HELP("try_nmfa({Node,Mod,Fun,Args})"," safe call in try apply(Node,Module,Fun,Args)"),
+  ?HELP("","").
+
+files(help)->
+  ?HELP("",""),
+  ?HELP("","").
+
+
+environment(help)->
+  ?HELP("",""),
+  ?HELP("","").
+
+build(help)->
+  ?HELP("",""),
+  ?HELP("","").
+
+communications(help)->
+  ?HELP("",""),
+  ?HELP("","").
+
+% Communications
+
+ask({pid,Pid},_,F0) -> Pid!F0();
+ask({module,Mod},Socket,F0) -> Mod:send(Socket,F0()).
+
+wait_reply(Timeout,F1)->
+ receive
+  Msg->F1(Msg)
+ after Timeout -> timeout
+ end.
+
+connect({pid,_},_) -> ok;
+connect({module,Module},Args) -> apply(Module,connect,Args).
+
+close({module,Module},Socket)-> Module:close(Socket);
+close(_,_) -> ok.
+
+ask_wait(Transport,Socket,F0,Timeout,PostF1) ->
+ ask(Transport,Socket,F0),
+ wait_reply(Timeout,PostF1). 
+
+session(Transport,Args,Socket,F0,Timeout,PostF1)->
+     Socket=connect(Transport,Args),
+     R=ask_wait(Transport,Socket,F0,Timeout,PostF1),
+     close(Transport,Socket),
+     R.
+
+session_apply(Transport,Args,Socket,Timeout)->
+     Socket=connect(Transport,Args),
+     %R=lists:map(fun({{},{}})-> end, Asks),
+     close(Transport,Socket),
+     'R'.
+
+     
