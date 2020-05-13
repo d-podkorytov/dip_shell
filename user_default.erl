@@ -142,17 +142,22 @@ from(pid)->receive Msg->Msg after 2000-> timeout end.
 to({file,Name})  ->{ok,F}=file:open(Name,[write]),F.
 
 % write to file session or tree of calls
-write_do_file_session(Name,F1) when is_function(F1,1) -> F1(Name);
-write_do_file_session(Name,F0) when is_function(F0,0) -> F0();
+write_do_file_session(File,F1) when is_function(F1,1) -> file:write(File,F1(File));
+%write_do_file_session(File,F0) when is_function(F0,0) -> F0();
   
-write_do_file_session(Name,{Mod,F1,Arg})             -> apply(Mod,F1,Arg);
-write_do_file_session(Name,{Node,Mod,F1,Arg})        -> rpc:call(Node,Mod,F1,Arg);
+write_do_file_session(File,{Mod,F1,Arg})             -> file:write(File,apply(Mod,F1,Arg));    % debug or refactor it
+write_do_file_session(File,{Node,Mod,F1,Arg})        -> file:write(File,rpc:call(Node,Mod,F1,Arg)); % debug or refactor it
   
-write_do_file_session(Name,[])            -> [];
-write_do_file_session(Name,L) when is_list(L)  -> lists:map(fun(A) -> write_do_file_session(Name,A) end, L).  
+write_do_file_session(File,[])            -> [];
+write_do_file_session(File,L) when is_list(L)  -> lists:map(fun(A) -> write_do_file_session(File,A) end, L).  
+
+write_file_session(Name,F0) when is_function(F0,0) ->
+                                    {ok,F}=file:open(Name,[write]),
+                                    file:write(F,F0()),  
+                                    file:close(F);
 
 write_file_session(Name,Functor)  ->{ok,F}=file:open(Name,[write]),
-                                    write_do_file_session(Name,Functor),  
+                                    write_do_file_session(F,Functor),  
                                     file:close(F).
  
 %t()-> {date(),time()}.
@@ -329,6 +334,32 @@ unzip(Zip)-> zip:unzip(Zip).
 untgz(Arhive)-> os:cmd("tar xvfz "++Arhive).
 untar(Arhive)-> os:cmd("tar xvf "++Arhive).
 
+cp(From,To) -> 
+ case get_env("OS") of
+  "Windows_NT" -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
+                  file:copy(to_filename(From),to_filename(To));
+
+   _           -> os:cmd("cp -r " ++to_filename(From)++" "++to_filename(To))
+ end.
+
+mv(From,To) -> file:rename(to_filename(From),to_filename(To)).
+rm(Path)    -> file:delete(to_filename(Path)).
+grep(What)  -> 
+  case get_env("OS") of
+  "Windows_NT" -> os:cmd("find \"" ++to_filename(What)++"\" *");
+
+   _           -> os:cmd("grep "++to_filename(What)++" -R *")
+ end.
+
+% run editor
+ed(File) -> 
+ case get_env("OS") of
+  "Windows_NT" -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
+                  os:cmd("notepad " ++ to_filename(File));
+
+   _           -> os:cmd("mousepad " ++to_filename(File))
+ end.
+
 %% http operations
 -define(AGENTS,
 ["Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko", % IE 11
@@ -436,13 +467,12 @@ case Ext of
              os:cmd("make"),
              file:set_cwd(OldDir);
              
-% "cmake"  -> ok;
  "go"     -> OldDir=file:get_cwd(),
              file:set_cwd(DirName),
              out("=> Enter to "++DirName),       
              os:cmd("go build"),
              file:set_cwd(OldDir);
-% "ant"    -> ok;
+
   E -> io:format("unknown extension do not know how to build ~p directory ~n",[E])
 end.
   
@@ -465,9 +495,6 @@ call(Node,Mod,Fun,Arg)   -> rpc:call(Node,Mod,Fun,Arg).
 mcall(Nodes,Mod,Fun,Arg) -> rpc:multicall(Nodes,Mod,Fun,Arg).
 mcall(Mod,Fun,Arg)       -> rpc:multicall(Mod,Fun,Arg).
  
-cp(From,To) -> file:copy(to_filename(From),to_filename(To)).
-mv(From,To) -> file:rename(to_filename(From),to_filename(To)).
-rm(Path)    -> file:delete(to_filename(Path)).
 
 to_filename(A) when is_atom(A) -> atom_to_list(A);
 to_filename(A) when is_binary(A) -> unicode:characters_to_list(A);
@@ -478,7 +505,7 @@ to_filename(A) -> A.
 eval(Path)  -> file:eval(Path).
 eval(Node,Path) -> rpc:call(Node,file,eval,[Path]).
 
-ed(Path)        -> os:cmd(?EDITOR++" "++Path).
+%ed(Path)        -> os:cmd(?EDITOR++" "++Path).
 
 df()         -> string:tokens(os:cmd("df -h"),"\n").
 df(Node)     -> string:tokens(rpc:call(Node,os,cmd,["df -h"]),"\n").
