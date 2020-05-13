@@ -355,12 +355,14 @@ grep(What)  ->
  end.
 
 % run editor
-ed(File) -> 
- case get_env("OS") of
-  "Windows_NT" -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
-                  os:cmd("notepad " ++ to_filename(File));
+ed(Files) when is_tuple(Files) -> map(fun(A) -> ed(A) end, tuple_to_list(Files));
+ed(File) ->
+ case {get_env("OS"), get_env("XDG_SESSION_TYPE")} of
+  {"Windows_NT",_} -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
+                      spawn( fun()-> os:cmd("notepad " ++ to_filename(File)) end);
 
-   _           -> os:cmd("mousepad " ++to_filename(File))
+  {_,"x11"}        -> spawn( fun()-> os:cmd("mousepad " ++to_filename(File)) end)
+
  end.
 
 %% http operations

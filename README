@@ -246,8 +246,9 @@ Predicates for string filtration:
 
  eval("Script").     run erlang script
 
- ed("Arg").          run editor for file
-
+ ed("File_Name").          run editor for file
+ ed({"File_Name",1}).      run editor for set of files
+    
  map_file_lines(fun(A) -> A end,"Text_file"). run function of one argument for each line of given text file.
 
  fold_file_lines(F2,Acc,"Text_file")  foldl for text file
