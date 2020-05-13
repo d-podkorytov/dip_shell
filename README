@@ -286,4 +286,34 @@ Predicates for string filtration:
  scp(From,To,Port).   Copy files over SSH
 
  ssh_exec(Addr,Port,User,Pass,Cmd). Run OS command by SSH
+
+
+ TRACING
+ 
+ For tracing start tracer: 
+ 1> tracer_on(). 
+
+ Register Module or Module and Functions by calls:
+
+ 2>trace(Module). 
+ 3>trace(Module,Function).
+ 4>trace(Module,Function,Arity) if module have function with different arities.
+
+ For stop tracer just type:
+
+ trace_off(Module,Function) or tracer_off(Module) stop tracing given Module. 
+
+ 5> tracer_add_node(Node). Add node for debugging
+
+ For stop tracer subsytem just type:
+
+ 6> tracer_off().
+
+ TRACING EXAMPLE
+
+  tracer_on(),
+  trace(lists,seq),
+  lists:seq(1,10),
+  trace_off(lists,seq),
+  lists:seq(1,10).                 
  

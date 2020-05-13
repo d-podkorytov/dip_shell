@@ -628,4 +628,26 @@ system_export_to_file()->
  out(F,exports(Pathes)),
  close_file(F).
 
-                
+% tracing
+
+tracer_off()-> dbg:stop_clear(),dbg:stop().
+
+tracer_on()->
+ dbg:tracer(), %% Start the default trace message receiver
+ dbg:p(all, c). %% Setup call (c) tracing on all processes
+
+trace(Mod,Fun)->dbg:tp(Mod, Fun, cx). %% Setup an exception return trace (x) on lists:seq
+trace(Mod) when is_atom(Mod) ->dbg:tp({Mod,'_','_'}, cx);
+trace(Pid) when is_pid(Pid) ->dbg:tp(Pid, cx).
+
+trace_flag(Mod,Flag)->dbg:tp({Mod,'_','_'}, Flag).
+trace_flag(Mod,Fun,Flag)->dbg:tp({Mod,Fun,'_'}, Flag).
+
+trace_off(Mod)    ->dbg:ctp({Mod,'_','_'}).
+trace_off(Mod,Fun)->dbg:ctp({Mod,Fun,'_'}).
+
+tracer_add_node(Node)->dbg:n(Node).
+
+tracer_example()->
+ "tracer_on(),trace(lists,seq),lists:seq(1,10),trace_off(lists,seq),lists:seq(1,10).".                 
+ 
