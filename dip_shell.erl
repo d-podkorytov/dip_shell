@@ -38,9 +38,9 @@ install()->
  {ok,F1} = file:open(HOME++"/.dip_aliases",[write]),
 
  lists:map(fun(A)->io:format(F1,"~s~n",[A]) end,[
- "{date,{os,cmd,[\"date\"]}}.",
- "{nodes_date,{cluster,os,cmd,[\"date\"]}}.",
- "{welcome,[{cluster,os,cmd,[\"date\"]},{cluster,erlang,node,[]},{os,cmd,[\"df -H\"]}]}."
+ "{os_date,{os,cmd,[\"date\"]}}.",
+ "{nodes_date,{cluster,user_default,local_time,[]}}.",
+ "{welcome,[{cluster,user_default,local_time,[]},{cluster,erlang,node,[]}]}."
  ]),
  io:format("file ~s was created~n",[HOME++"/.dip_aliases"]),
  file:close(F1).

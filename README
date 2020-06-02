@@ -2,7 +2,7 @@ Erlang VM CLI extension
 
 GOAL
 
-The goal of project is more comfortable working inside erl's CLI.
+The goal of project is more comfortable working inside erl's CLI and Erlang clusters.
 
 OVERVIEW
 
@@ -55,9 +55,9 @@ from your's ~/.erlang file or just do
 $rm ~/.erlang
 but removing whole file is not so safe like carefully edit it.
 
-DIP_SH COMMANDS
+==== DIP_SH COMMANDS ========
 
-1) Function calls:
+FUNCTIONS CALLS
  
  call(Module,Func,Args) is apply(Module,Func,Args) or call Module:Func(Args);
 
@@ -84,22 +84,24 @@ Example:
 [{192,168,8,100}]-nonode@nohost-"/home/es/w/dip_shell">a(date).  
 ["Mon 11 May 2020 07:18:46 AM PDT"]
 
- get_env(). Get OS environment.
+ get_env(). 
+	Get OS environment.
 
- get_env(Variable). Get OS environment by given name Variable, for example get_env("HOME"). 
+ get_env(Variable). 
+	Get OS environment by given name Variable, for example get_env("HOME"). 
 
- s(Mosule). Module:start()
+ s(Mosule). same as Module:start()
 
  c().    alias for erlc *.erl
  make(). alias for make:all().  
 
- mkdir(Name). Make directory.
+ mkdir(Name). Make directory by given Name.
 
  df().      alias for OS command df
  du().      alias for OS command du *
  netstat(). alias for netstat -an
 
-Directory list functions
+DIRECTORY LIST FUNCTIONS
 
  l().
 
@@ -149,51 +151,71 @@ Directory list functions
 
  lf2("From","To").
 
-Predicates for string filtration:
+PREDICATES FOR STRING FILTRATION
 
- ends("line","ne"). return true for line with given end
+ ends("line","ne"). 
+	Return true for line with given end
 
- starts("line","li"). return true for line with given start string
+ starts("line","li"). 
+	Return true for line with given start string
 
- inside("line","in").return true for line with given string inside
+ inside("line","in").
+	return true for line with given string inside
 
- line_to_tuple(Line,Separators) -> list_to_tuple(string:tokens(Line,Separators)).
+ line_to_tuple(Line,Separators). 
+	list_to_tuple(string:tokens(Line,Separators)).
 
- line_to_tuple(Line) -> line_to_tuple(Line," \t").
+ line_to_tuple(Line). 
+	line_to_tuple(Line," \t").
 
- csv_line_to_tuple(Line). Convertation CSV line to tuple
+ csv_line_to_tuple(Line). 
+	Convertation CSV line to tuple
 
- init_prompt(). Init command prompt
+ init_prompt(). 
+	Init command prompt
 
  hook(history).
 
- ip(). It show host ip address.
+ ip(). 
+	It show host ip address.
 
- name(). It show VM name.
+ name(). 
+	It show VM name.
 
- netstat(). Show network activity by netstat -an
+ netstat(). 
+	Show network activity by netstat -an
 
- List operatios:
+ LIST OPERATIONS:
 
- foldl/3  Alias for lists:foldl/3
+ foldl/3  
+	Alias for lists:foldl/3
 
- map(F/1,List). Alias for lists:map/2
+ map(F/1,List). 
+	Alias for lists:map/2
 
- reverse(List). reverse List
+ reverse(List). 
+	reverse List
 
- zip_ls("File.zip"). return content for zip file.
+ zip_ls("File.zip"). 
+	return content for zip file.
 
- zip("File.zip",Files_list). It zip list of files.
+ zip("File.zip",Files_list). 
+	It zip list of files.
 
- zip("Dir"). zip folder Dir to Dir.zip file
+ zip("Dir"). 
+	zip folder Dir to Dir.zip file
 
- zip(). zip current folder and store it as ../current_folder_name.zip
+ zip().
+	zip current folder and store it as ../current_folder_name.zip
 
- unzip("file.zip"). unzip file
+ unzip("file.zip"). 
+	unzip file
 
- untgz("file.tgz"). untar file.tgz
+ untgz("file.tgz"). 
+	untar file.tgz
 
- untar("file.tar"). untar file.tar
+ untar("file.tar"). 
+	untar file.tar
 
  http("From","To").
 
@@ -213,69 +235,179 @@ Predicates for string filtration:
 
  do_build("Arg").
 
- open_file("FileName").
+ open_file("FileName"). 
+	Open file for writing
 
  close_file(File).
 
- consult_file("FileName").
+ consult_file("FileName"). 
+	Load terms from text file
 
  read_file("Arg").
 
  format_file/3 
 
- out("Arg").
+ out(Arg). 
+	Write term Arg to stdout
 
- outs("Arg").
+ outs(Arg). 
+	Write string or binary Arg to stdout
 
- out(File,"To").
+ out(File,Arg).
+	Write term Arg to file descriptor File
 
- outs(File,"To").
+ outs(File,Arg). 
+	Write string or binary Arg to file descriptor File
 
- write_file(File,"Arg").
+ write_file(FileName,Arg). 
+	It writes Arg to file FileName
 
- write_session_file(File,Session). write file session as tree of calls
+ write_file_session(File,Session). 
+	write to file File session as tree of calls
 
+ write_file_session(File,function,Args). 
+	write to file File any function of dip_shell with given Args
 
- cmd("OS command"). run Operating System's command 
+ write_file_session(File,function). 
+	 write to file File any function of dip_shell without arguments.
+ 	It same as write_file_session(File,function,[]).
+ 
+write_file_session(File,Node,Module,Function,Args). 
+ 	write to file File result of calling any Module:Function(Args) on given Node 
 
- cp("From","To"). copy file From -> To
+file_info(DirOrFile).
+	return file information
 
- mv("From","To"). rename file
+is_dir(Dir).
+	'is it directory' function
 
- rm("Arg").       remove file
+dir_tree(Dir).
+	directory tree
 
- eval("Script").     run erlang script
+chmod(A,B).
+	like  file:change_mode(A,B).
 
- ed("File_Name").          run editor for file
- ed({"File_Name",1}).      run editor for set of files
+chown(A,B).
+	like file:change_owner(A,B).
+
+chown(A,B,C).
+	like file:change_owner(A,B,C).
+
+chgrp(A,B).
+	like file:change_group(A,B).
+
+chtime(A,B).
+	like file:change_time(A,B).
+
+chtime(A,B,C).
+	like file:change_time(A,B,C).
+
+path_to_list(Path).
+	transform Path to list like string:tokens(Path,"\\/").
+
+ Examples: 
+
+ write_file_session("stats.txt",stats). 
+	This call is for writing to file whole cluster stats
+
+ write_file_session("make.txt",make). 
+	This call is for writing to file result of calling  any 
+ 	dip_shell function with zero arity.
+
+ write_file_session("make.txt",cp,["from_file","to_file"]). 
+	This call is for writing to file result of calling  any 
+        dip_shell function with given arguments and arity.
+
+ write_file_session("stats.txt",fun()-> ... end). 
+	This call is for writing to file result of calling lambda function
+
+ cmd("OS command"). 
+	run Operating System's command 
+
+ cmd(Input,Cmd).    
+	same as above by it for sending Input text to stdin input of command Cmd 
+
+ Cmd1 = "echo "++Input++"|"++Cmd,
+
+ cp("From","To"). 
+	copy file From -> To
+
+ mv("From","To"). 
+	rename file
+
+ rm("Arg").       
+	remove file
+
+cat(File).
+	read file file
+
+cat(File,Delims)
+	read file with line delimiters Delims
+
+cat(File,LDelims,FSep)
+	read file with line delimiters LDelims and field separators Fsep
+        For example : for reading CSV file is needs call like cat("1.csv","\n",",").
+
+stdout(F0)
+	evaluate value of F0() and write it to file named "stdout" 
+
+stdout(Module,Fun,Arg)
+	evaluate value of apply(Moduel,Fun,Arg) and write it result to file named "stdout"  
+
+stdout(Node,M,F,A)
+        evaluate value of apply(Moduel,Fun,Arg) in node Node and write it result to file named Node++".stdout"  
+
+ eval("Script").     
+	run erlang script
+
+ ed("File_Name").          
+	run editor for file
+ ed({"File_Name",some_file,1}).      
+	run editor for set of files File_Name, some_file and 1 in GUI of OS
     
- map_file_lines(fun(A) -> A end,"Text_file"). run function of one argument for each line of given text file.
+ map_file_lines(fun(A) -> A end,"Text_file"). 
+	run function of one argument for each line of given text file.
 
- fold_file_lines(F2,Acc,"Text_file")  foldl for text file
+ fold_file_lines(F2,Acc,"Text_file")  
+	foldl for text file
 
- try_f0(F0). is alias for try F0() of ... end
+ try_f0(F0). 
+	is alias for try F0() of ... end
 
- try_f1(F1,Arg). is alias for try F1(Arg) of ... end
+ try_f1(F1,Arg). 
+	is alias for try F1(Arg) of ... end
 
- help(). return functions 
+ help(). 
+	return dip_shell functions 
 
- build(). build project
+ help(Word). 
+	return dip_shell functions aka grep Word
 
- download_deps(). download project dependencies
+ build(). 
+	build project
 
- upload(). publish project
+ download_deps(). 
+	download project dependencies
+
+ upload(). 
+	publish project
 
  exit().
 
- erl_add_patha("Arg"). add path for loading modules
+ erl_add_patha("Arg"). 
+	add path for loading modules
 
- erl_get_path(). return all system pathes for loading modules.
+ erl_get_path(). 
+	return all system pathes for loading modules.
 
- exports(). return modules exports for current directory
+ exports(). 
+	return modules exports for current directory
 
- exports("path"). return modules exports for directory "path"
+ exports("path"). 
+	return modules exports for directory "path"
 
- system_export_to_file(). return all modules exports for whole ERLANG OTP 
+ system_export_to_file(). 
+	return all modules exports for whole ERLANG OTP 
 
  export_to_file("File"). 
 
@@ -286,7 +418,6 @@ Predicates for string filtration:
  scp(From,To,Port).   Copy files over SSH
 
  ssh_exec(Addr,Port,User,Pass,Cmd). Run OS command by SSH
-
 
  TRACING
  
@@ -316,4 +447,61 @@ Predicates for string filtration:
   lists:seq(1,10),
   trace_off(lists,seq),
   lists:seq(1,10).                 
+
+GET NODE STATISTICS
+
+Return cluster or node statisctics:
+
+stats(Node) and stats().
+
+Open/close time window for accumulation stats during given MSecs in Node:
+
+stats_time_window(Node,MSecs). 
+
+Open/close time window for accumulation stats during given MSecs in whole cluster:
+
+stats_time_window(MSecs).
+
+ OS SYSTEM
+
+publish() -> TODO it. dump configuration to cloud , to SSH or local file.
+
+backup_system().   Backup OS configuration.
+backup_packages(). Backup list of installed packages.
+backup_user().     Backup dotfiles for current user.
+
+services().        It show status for working services.
+
+os_info().         Show Os type and name.
  
+ENVIRONMET
+
+from/0,1 ,to/0,1 and arg/0,1 was made for get stored values for two argument commands like cp and mv.
+from() and to() and arg() show all history in depth.
+from(N) and to(N) and arg(N) show nth erlement of history stack.
+
+push(Key,Value) and pop(Key,Value) is functions for push/pop values to/from stack named as Key.
+
+from/0,1 to/0,1 arg/0,1 is using keys as their names.
+
+So in practical using it will be:
+ 
+1>mv(1,2).
+2>mv(to(1),from(1)) is same as mv(2,1).
+3>to().
+  [2]
+
+4>from().
+  [1]
+
+5>cmd("rebar build").
+6>cmd("ls -l").
+7>arg().
+ ["ls -l","rebar build"]
+
+8>pop(arg).
+ "ls -l"
+
+9>arg().
+  ["rebar build"] 
+  

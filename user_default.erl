@@ -30,6 +30,12 @@
 % {ok,CWD} = file:get_cwd(),
 % io:format(F,"~s~n",["code:load_abs(\""++CWD++"/user_default\"),user_default:init_prompt()."]),
 % file:close(F).
+
+log_level(N)    -> logger:set_module_level(all,N).
+log_level(Mod,N)-> logger:set_module_level(Mod,N).
+
+local_time()-> calendar:local_time().
+         %calendar:system_time_to_rfc3339(1).
 home()-> 
   case os:getenv("HOME") of
    false -> os:getenv("USERPROFILE");% user's root for Windows
@@ -41,7 +47,11 @@ get_env()->
    L->lists:map(fun(A)->list_to_tuple(string:tokens(A,"=")) end, L)
  end.
 
-get_env(Key)-> proplists:get_value(Key,get_env()).
+os_env()-> lists:map(fun(A)-> list_to_tuple(string:tokens(A,"=")) end,string:tokens(os:cmd("set"),"\n")).
+
+os_env(Key) -> proplists:get_value(Key,os_env()).
+
+get_env(Key)-> os:getenv(Key).
   
 % show aliases
 aliases()-> 
@@ -94,7 +104,7 @@ ssh(Addr,Port,User)->
  %{ok, ConRef} = 
  ssh:shell(Addr,Port,[{user,User}]).
 
-scp(From,To,Port)  -> os:cmd("scp -P "++integer_to_list(Port)++" "++From++" "++To).
+scp(From,To,Port)  -> nice_view(os:cmd("scp -P "++integer_to_list(Port)++" "++From++" "++To)).
 
 rec_loop(Acc)->
      receive
@@ -137,10 +147,10 @@ ssh_exec(Addr,Port,User,Pass,Cmd)->
 
 % open pipes
 
-from({file,Name})->{ok,F}=file:open(Name,[read]),F;
-from(pid)->receive Msg->Msg after 2000-> timeout end.
+%pipe_from({file,Name})->{ok,F}=file:open(Name,[read]),F;
+%pipe_from(pid)->receive Msg->Msg after 2000-> timeout end.
 
-to({file,Name})  ->{ok,F}=file:open(Name,[write]),F.
+%pipe_to({file,Name})  ->{ok,F}=file:open(Name,[write]),F.
 
 % write to file session or tree of calls
 write_do_file_session(File,F1) when is_function(F1,1) -> file:write(File,F1(File));
@@ -151,6 +161,40 @@ write_do_file_session(File,{Node,Mod,F1,Arg})        -> file:write(File,rpc:call
   
 write_do_file_session(File,[])            -> [];
 write_do_file_session(File,L) when is_list(L)  -> lists:map(fun(A) -> write_do_file_session(File,A) end, L).  
+
+% refactor it in the future
+
+write_file_session(Name,F,Args) when is_atom(F) ->
+                                    {ok,F}=file:open(Name,[write]),
+                                    case apply(?MODULE,F,Args) of
+                                     Bin when is_binary(Bin) -> file:write(F,Bin);
+                                     Term -> io:format(F,"~p.~n",[Term])
+                                    end,  
+                                file:close(F).
+
+write_file_session(Name,Mod,F,Args) when is_atom(F) ->
+                                    {ok,F}=file:open(Name,[write]),
+                                    case apply(Mod,F,Args) of
+                                     Bin when is_binary(Bin) -> file:write(F,Bin);
+                                     Term -> io:format(F,"~p.~n",[Term])
+                                    end,  
+                                file:close(F).
+
+write_file_session(Name,Node,Mod,F,Args) when is_atom(F) ->
+                                    {ok,F}=file:open(Name,[write]),
+                                    case rpc:call(Node,Mod,F,Args) of
+                                     Bin when is_binary(Bin) -> file:write(F,Bin);
+                                     Term -> io:format(F,"~p.~n",[Term])
+                                    end,  
+                                file:close(F).
+
+write_file_session(Name,F0) when is_atom(F0) ->
+                                    {ok,F}=file:open(Name,[write]),
+                                    case apply(?MODULE,F0,[]) of
+                                     Bin when is_binary(Bin) -> file:write(F,Bin);
+                                     Term -> io:format(F,"~p.~n",[Term])
+                                    end,  
+                                    file:close(F);
 
 write_file_session(Name,F0) when is_function(F0,0) ->
                                     {ok,F}=file:open(Name,[write]),
@@ -163,7 +207,42 @@ write_file_session(Name,F0) when is_function(F0,0) ->
 write_file_session(Name,Functor)  ->{ok,F}=file:open(Name,[write]),
                                     write_do_file_session(F,Functor),  
                                     file:close(F).
- 
+
+file_info(DirOrFile)-> file:read_file_info(DirOrFile).
+
+is_dir(Dir)-> try file_info(Dir) of
+  {ok,{file_info,_,directory,_,
+               _,
+               _,
+               _,
+               _,_,_,_,_,_,_}} -> true;
+
+  {ok,{file_info,_,_,_,
+               _,
+               _,
+               _,
+               _,_,_,_,_,_,_}} -> false;
+
+   R -> {R,Dir}
+   catch
+    Err:Reason -> #{error => Err, reason => Reason, path => Dir}
+   end.             
+
+dir_tree(Dir)->case l(Dir) of
+               {ok,L} -> lists:map(fun(A) -> dir_tree(Dir++"/"++A) end,L);
+               [] -> {empty,Dir};
+               {error,enotdir} -> Dir; 
+                R -> R
+               end.
+
+chmod(A,B)->  file:change_mode(A,B).
+chown(A,B)->  file:change_owner(A,B).
+chown(A,B,C)->  file:change_owner(A,B,C).
+chgrp(A,B)->  file:change_group(A,B).
+chtime(A,B)->  file:change_time(A,B).
+chtime(A,B,C)->  file:change_time(A,B,C).
+path_to_list(Path)-> string:tokens(Path,"\\/").
+    
 %t()-> {date(),time()}.
 
 app(App) -> application:ensure_all_started(App).
@@ -173,7 +252,7 @@ app(App) -> application:ensure_all_started(App).
 s(Module) -> Module:start().
 
 make()-> make:all().
-c()->    string:tokens(os:cmd("erlc *.erl"),"\n").
+c()->    nice_view(os:cmd("erlc *.erl")).
 
 mkdir(Dir)->
  file:make_directory(Dir).
@@ -232,7 +311,7 @@ prj()-> lprj("./",fun(A) ->
 fetch_build_cmd(A) ->
  % L=consult("build_file"),
  % Cmd= proplists:get_value(A,L), 
- fun() -> os:cmd("rebar make") end.
+ fun() -> nice_view(os:cmd("rebar make")) end.
 
 lext(Ext)-> 
  lf(fun(A,Acc)->
@@ -289,12 +368,45 @@ csv_line_to_tuple(Line) -> line_to_tuple(Line,",").
  
 init_prompt()   ->
       %code:load_abs("./user_default"), 
-      shell:history(100),
-      shell:results(1000), 
+      %shell:history(100),
+      %shell:results(1000),
+      msacc:start(),
+      %error_handler:undefined_function(?MODULE,undefined_function,[info,f,[3]]),
+      %error_handler:undefined_lambda(?MODULE,undefined_lambda,[info,2,3]),
       shell:prompt_func({?MODULE,hook}).
 
+%undefined_function(M,F,Arg)->
+%	logger:critical(#{module => M, function => F, args => Arg, reason => "undefined function", exports => M:module_info(exports)}).
+%
+%undefined_lambda(M,F,Arg)  ->
+%	logger:critical(#{module => M, function => F, args => Arg, reason => "undefined lambda"}).
+
+%return cluster or node statisctics
+stats(Node)-> 
+      #{node => Node, stats => rpc:call(Node,msacc,stats,[])}. 
+
+stats()-> lists:map(fun(Node)-> #{node => Node, stats => rpc:call(Node,msacc,stats,[])} end,[node()|nodes()]).
+
+% open/close time window for accumulation stats during given MSecs in Node
+stats_time_window(Node,MSecs)-> 
+      rpc:call(Node,msacc,start,[MSecs]). 
+
+% open/close time window for accumulation stats during given MSecs in whole cluster
+stats_time_window(MSecs)-> 
+      lists:map(fun(Node)-> #{node => Node, stats => rpc:call(Node,msacc,stats,[MSecs])} end,[node()|nodes()]). 
+
+%write system_information for local node to file Node-Host..node_information.txt
+node_information()->
+      system_information:to_file(atom_to_list(node())++"-"++?MODULE:name()++".node_information.txt").
+       
 %command prompt
 hook(Arg)-> {ok,CWD}=file:get_cwd(),
+            %io:format("Arg =~p ~n",[Arg]),
+            %Tail=case get(history) of
+            %      L when is_list(L) -> L;
+            %      _                 -> []
+            %     end,
+            %push(history,[Arg|Tail]),
             %io:format("~p-~p-~p-~p-~p>",[{date(),time()},name(),ip(),node(),CWD]), % long format for prompt
             io:format("~p-~p-~p>",[ip(),node(),CWD]),
             "".
@@ -319,7 +431,25 @@ foldl(F2,Acc,List)-> lists:foldl(F2,Acc,List).
 map(F1,List)-> lists:map(F1,List).
 reverse(List)-> lists:reverse(List).
 
-%% archive operations
+at(H,[H|_],Acc)    -> 1+Acc;
+at(What,[_|T],Acc) -> at(What,T,Acc+1);
+at(What,[],Acc)    -> 0.
+
+at(What,List)      -> at(What,List,0). 
+
+%applyc(L) when is_list(L) -> lists:map(fun(NodeMFA)-> R=apply(NodeMFA),put(at(NodeMFA,L),R),R end,L).
+applyc(L) when is_list(L) -> lists:map(fun(NodeMFARf)-> R=apply(NodeMFARf),put(at(NodeMFARf,L),R),R end,L).
+
+% Rf is routing for adaptation one argument return for get(Net) to arbitrary list nedded for F, basicly it
+% looks like fun(Var) -> [1,Var,some_arg] end, length of returned list shoul be as arity of NodeMF function
+ 
+apply({Node,M,F,{at,Nth},Rf})  -> rpc:call(Node,M,F,Rf(get(Nth)));
+apply({Node,M,F,{at,Nth}})  -> rpc:call(Node,M,F,[get(Nth)]);
+apply({Node,M,F,A})   -> rpc:call(Node,M,F,A);
+apply({M,F,{at,Nth}}) -> apply(M,F,[get(Nth)]);
+apply({M,F,A})        -> apply(M,F,A).
+
+% archive operations
 
 zip_ls(Zip)-> zip:list_dir(Zip).
 
@@ -335,29 +465,118 @@ zip()->
  
 unzip(Zip)-> zip:unzip(Zip).
 
-untgz(Arhive)-> os:cmd("tar xvfz "++Arhive).
-untar(Arhive)-> os:cmd("tar xvf "++Arhive).
+untgz(Arhive)-> nice_view(os:cmd("tar xvfz "++Arhive)).
+untar(Arhive)-> nice_view(os:cmd("tar xvf "++Arhive)).
 
-cp(From,To) -> 
- case get_env("OS") of
-  "Windows_NT" -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
+% push Value to Key if it unique
+push(Key,Value)-> L = case get(Key) of
+                      R when is_list(R) -> R;
+                      _ -> []
+                      end,
+                  case lists:member(Value,L) of
+                   false -> put(Key,[Value| L]);
+                   _     -> L
+                  end.
+                  
+pop(Key) -> case get(Key) of
+                      [R|Tail] -> put(Key,Tail),R;
+                      _ -> []
+            end.
+         
+from()->try get(from) of L when is_list(L) -> L catch _:_ -> [] end.
+to()  ->try get(to)   of L when is_list(L) -> L catch _:_ -> [] end.
+%cmd() ->try get(cmd)  of L when is_list(L) -> L catch _:_ -> [] end.
+arg() ->try get(arg)  of L when is_list(L) -> L catch _:_ -> [] end.
+
+%from(N)->L=from(),lists:nth(length(L)-N,L).
+%to(N)  ->L=to(),  lists:nth(length(L)-N,L).
+%arg(N) ->L=arg(), lists:nth(length(L)-N,L).
+
+from(N)->L=from(),lists:nth(N,L).
+to(N)  ->L=to(),  lists:nth(N,L).
+arg(N) ->L=arg(), lists:nth(N,L).
+
+history()-> case get(history) of
+             L when is_list(L) -> L;
+             _ -> []
+             end.
+             
+history(N)-> case get(history) of
+             L when is_list(L) -> lists:nth(N,L);
+             _ -> []
+             end.
+
+cat(File)->{ok,Bin}=file:read_file(File),
+            Bin.
+
+cat(File,Delims)->{ok,Bin}=file:read_file(File),
+                  string:tokens(unicode:characters_to_list(Bin),Delims).
+
+cat(File,LDelims,FSep)->
+                  lists:map(fun(A)->list_to_tuple(string:tokens(A,FSep)) end,cat(File,LDelims)).
+
+lines(File)->{ok,F}=file:open(File,[read]),
+             file:close(F).
+
+stdout(F0) when is_function(F0,0)-> 
+           {ok,F} = file:open("stdout.txt",[write]),
+           io:format(F,"~p.~n",[F0()]),
+           file:close(F). 
+
+stdout(M,F,A) when is_atom(F) and is_atom(M) and is_list(A) -> 
+           {ok,FD} = file:open("stdout.txt",[write]),
+           io:format(FD,"~p.~n",[apply(M,F,A)]),
+           file:close(FD). 
+
+stdout(Node,M,F,A) when is_atom(F) and is_atom(M) and is_atom(Node) and is_list(A) -> 
+           {ok,F} = file:open(atom_to_list(Node)++".stdout",[write]),
+           io:format(F,"~p.~n",[rpc:call(Node,M,F,A)]),
+           file:close(F). 
+
+cp(From) -> cp(From,"/mnt").
+
+cp(From,To) ->
+ push(from,From),
+ push(to,To), 
+ case os:type() of
+  {_,nt}       -> %nice_view(os:cmd("copy "  ++to_filename(From)++" "++to_filename(To)));
                   file:copy(to_filename(From),to_filename(To));
 
-   _           -> os:cmd("cp -r " ++to_filename(From)++" "++to_filename(To))
+   _           -> nice_view(os:cmd("cp -r " ++to_filename(From)++" "++to_filename(To)))
  end.
 
-mv(From,To) -> file:rename(to_filename(From),to_filename(To)).
-rm(Path)    -> file:delete(to_filename(Path)).
-grep(What)  -> 
-  case get_env("OS") of
-  "Windows_NT" -> os:cmd("find \"" ++to_filename(What)++"\" *");
+mv(From,To) ->
+  push(from,From),
+  push(to,To),  
+ file:rename(to_filename(From),to_filename(To)).
 
-   _           -> os:cmd("grep "++to_filename(What)++" -R *")
+rm(Path)    -> 
+  push(from,Path),
+  file:delete(to_filename(Path)).
+
+grep(What)  ->
+  push(arg,What), 
+  case os:type() of
+  {_,nt} -> nice_view(os:cmd("find \"" ++to_filename(What)++"\" *"));
+
+   _           -> nice_view(os:cmd("grep "++to_filename(What)++" -R *"))
+ end.
+
+find(What)  -> 
+  push(arg,What),
+  case os:type() of
+  {_,nt} -> nice_view(os:cmd("find \"" ++to_filename(What)++"\" *"));
+
+   _           -> nice_view(os:cmd("find . -name = "++to_filename(What)++""))
  end.
 
 % run editor
-ed(Files) when is_tuple(Files) -> map(fun(A) -> ed(A) end, tuple_to_list(Files));
+ed(Files) when is_tuple(Files) ->
+ push(arg,Files), 
+ map(fun(A) -> ed(A) end, tuple_to_list(Files));
+
 ed(File) ->
+ push(arg,File),
  case {get_env("OS"), get_env("XDG_SESSION_TYPE"),os:type()} of
   {"Windows_NT",_,_} -> %os:cmd("copy "  ++to_filename(From)++" "++to_filename(To));
                       spawn( fun()-> os:cmd("notepad " ++ to_filename(File)) end);
@@ -384,6 +603,7 @@ try lists:nth(N,?AGENTS) of
 end.
 
 http(Method,URL)->
+ push(arg,{Method,URL}),
  lists:map(fun(A)->application:ensure_all_started(A) end, [ssl,crypto,inets]),
  {ok,{Stat,Headers,Body}}=
       httpc:request(Method,{URL,[{"User-Agent",random_agent()}]},
@@ -391,11 +611,13 @@ http(Method,URL)->
                              [{body_format,binary}]), 
  Body. 
 
-http_fetch(URL)-> 
+http_fetch(URL)->
+ push(arg,URL), 
  [FileName|_] = lists:reverse(string:tokens(URL,"/")),
  http_fetch(URL,FileName,fun(FN)->post_transform(FileName) end).
 
-http_fetch(URL,FileName,F1)-> 
+http_fetch(URL,FileName,F1)->
+ push(arg,{URL,FileName,F1}), 
  io:format("~p will save as ~p ~n",[URL,FileName]),
  F=open_file(FileName),
  file:write(F,http(get,URL)),
@@ -459,25 +681,25 @@ case Ext of
  "rebar"  -> OldDir=file:get_cwd(),
              file:set_cwd(DirName),
              out("=> Enter to "++DirName),       
-             os:cmd(". ./rebar get-deps && . ./rebar make"),
+             nice_view(os:cmd(". ./rebar get-deps && . ./rebar make")),
              file:set_cwd(OldDir);
              
  "rebar3" -> OldDir=file:get_cwd(),
              file:set_cwd(DirName),
              out("=> Enter to "++DirName),       
-             os:cmd(". ./rebar3 get-deps && . ./rebar3 make"),
+             nice_view(os:cmd(". ./rebar3 get-deps && . ./rebar3 make")),
              file:set_cwd(OldDir);
              
  "make"   -> OldDir=file:get_cwd(),
              file:set_cwd(DirName),
              out("=> Enter to "++DirName),       
-             os:cmd("make"),
+             nice_view(os:cmd("make")),
              file:set_cwd(OldDir);
              
  "go"     -> OldDir=file:get_cwd(),
              file:set_cwd(DirName),
              out("=> Enter to "++DirName),       
-             os:cmd("go build"),
+             nice_view(os:cmd("go build")),
              file:set_cwd(OldDir);
 
   E -> io:format("unknown extension do not know how to build ~p directory ~n",[E])
@@ -496,9 +718,21 @@ outs(File,Term)->  io:format(File,"~ts~n",[Term]).
 write_file(File,Bin)    -> file:write(File,Bin).
 
 %% function calls
-cmd(Arg)                 -> os:cmd(Arg).
-cmd(Node,Arg)            -> rpc:call(Node,os,cmd,[Arg]).
+cmd(Cmd)                 ->
+ push(arg,Cmd), 
+ nice_view(os:cmd(Cmd)).
+
+cmd(Input,Cmd)                 ->
+ Cmd1 = "echo "++Input++"|"++Cmd,
+ push(arg,Cmd1), 
+ nice_view(os:cmd(Cmd1)).
+
+%cmd(Node,Arg)            ->
+% push(arg,{Node,Arg}), 
+% rpc:call(Node,os,cmd,[Arg]).
+
 call(Node,Mod,Fun,Arg)   -> rpc:call(Node,Mod,Fun,Arg).
+
 mcall(Nodes,Mod,Fun,Arg) -> rpc:multicall(Nodes,Mod,Fun,Arg).
 mcall(Mod,Fun,Arg)       -> rpc:multicall(Mod,Fun,Arg).
  
@@ -509,20 +743,71 @@ to_filename(A) when is_integer(A) -> integer_to_list(A);
 to_filename(A) -> A.
 
 %% run script
-eval(Path)  -> file:eval(Path).
+eval(Path)  ->
+ push(arg,Path), 
+ file:eval(Path).
+
 eval(Node,Path) -> rpc:call(Node,file,eval,[Path]).
 
-%ed(Path)        -> os:cmd(?EDITOR++" "++Path).
+mount(Dev)  ->
+ push(arg,Dev), 
+ mount("/dev/"++to_filename(Dev),"/mnt").
 
-df()         -> string:tokens(os:cmd("df -h"),"\n").
-df(Node)     -> string:tokens(rpc:call(Node,os,cmd,["df -h"]),"\n").
+mount(Dev,Mnt)  ->
+                 push(from,Dev),
+                 push(to,Mnt),  
+                 case os:type() of
+                 {unix,_} -> nice_view(os:cmd("mount "++to_filename(Dev)++" "++to_filename(Mnt)));
+                 %{_,  nt} -> string:tokens(os:cmd("dir"),"\n");
+                 R  -> {R,todo,mount}
+                end.
+                
+umount() -> umount("/mnt").
+
+umount(Mnt)  ->
+ push(arg,Mnt), 
+ case os:type() of
+                 {unix,_} -> nice_view(os:cmd("umount "++to_filename(Mnt)));
+                 %{_,  nt} -> string:tokens(os:cmd("dir"),"\n");
+                 R  -> {R,todo,umount}
+                end.
+
+df()         -> case os:type() of
+                 {unix,_} -> nice_view(os:cmd("df -h"));
+                 {_,  nt} -> string:tokens(os:cmd("dir"),"\n");
+                 R  -> {R,todo,df}
+                end.
+
+df(Node)     ->
+            push(arg,Node),
+            case os:type() of
+                 {unix,_} -> nice_view(rpc:call(Node,os,cmd,["df -h"]));
+                 {_,  nt} -> nice_view(rpc:call(Node,os,cmd,["dir"]));
+                 R  -> {R,todo,df}
+                end.
 
 du()         -> lists:map(fun([H|Tail])-> {list_to_integer(H),Tail} end,lists:map(fun(A)-> string:tokens(A,"\t")end,string:tokens(os:cmd("du *"),"\n"))).
-netstat()    -> string:tokens(os:cmd("netstat -an"),"\n").
-netstat(Node)-> string:tokens(rpc:call(Node,os,cmd,["netstat -an"]),"\n").
 
-ps()         -> string:tokens(os:cmd("ps aux"),"\n").
-ps(Node)     -> string:tokens(rpc:call(Node,os,cmd,["ps aux"]),"\n").
+netstat()    -> nice_view(os:cmd("netstat -an")).
+netstat(Node)->
+ push(arg,Node), 
+ nice_view(rpc:call(Node,os,cmd,["netstat -an"])).
+
+nslookup(Name,In,A,Server,Port)      -> inet_res:nslookup(Name,In,A,[{Server,Port}]).
+nslookup(Node,Name,In,A,Server,Port) -> rpc:call(Node,inet_res,nslookup,[Name,In,A,[{Server,Port}]]).
+
+nslookup(#{name := Name, in := In,a := A,server := Server,port := Port}) -> 
+	inet_res:nslookup(Name,In,A,[{Server,Port}]);
+
+nslookup(Name)->nslookup(Name,in,a,{1,1,1,1},53).
+
+nslookup()->nslookup("ya.ru",in,a,{1,1,1,1},53).
+dig()     ->nslookup("ya.ru",in,a,{127,0,0,1},53).
+
+dig(Name)->nslookup(Name,in,a,{127,0,0,1},53).
+
+ps()         -> nice_view(os:cmd("ps aux")).
+ps(Node)     -> push(arg,Node),nice_view(rpc:call(Node,os,cmd,["ps aux"])).
 pinfo(Pid)   -> rpc:pinfo(Pid).
 pinfo(Pid,Item) -> rpc:pinfo(Pid,Item).
 
@@ -538,9 +823,11 @@ psf(F1)     -> lists:map(fun(A,Acc)-> try F1(A) of
                          string:tokens(os:cmd("ps aux"),"\n")
                         ).
 %% ps with grep
-psg(Arg)     -> string:tokens(os:cmd("ps aux | grep "++Arg),"\n").
+psg(Arg)     ->
+ push(arg,Arg), 
+ string:tokens(os:cmd("ps aux | grep "++Arg),"\n").
 %% ps with grep -n
-psgn(Arg)    -> string:tokens(os:cmd("ps aux | grep -v "++Arg),"\n").
+psgn(Arg)    -> push(arg,Arg),string:tokens(os:cmd("ps aux | grep -v "++Arg),"\n").
       
 %% apply function of one argument to each line of text file File in map style
 map_file_lines(FileName,F1) -> {ok,File}=file:open(FileName,[read]),
@@ -555,7 +842,7 @@ map_lines_loop(File,F1)->
   eof -> ok;
   R   -> %io:format("R=~p~n",[R]),
          F1(R),
-      map_lines_loop(File,F1)  
+         map_lines_loop(File,F1)  
  end.
 
 %% foldl loop for text file                               
@@ -563,7 +850,7 @@ fold_lines_loop(File,F2,Acc)->
  case file:read_line(File) of
   eof -> ok;
   R   -> %io:format("R=~p~n",[R]),
-      fold_lines_loop(File,F2,F2(R,Acc))  
+         fold_lines_loop(File,F2,F2(R,Acc))  
  end.
 
 %% safe call apply(M,F,A).
@@ -595,8 +882,21 @@ try_f1(F1,Arg)-> try F1(Arg) of
              end.  
 %% help
 help()->
- io:format("Exports:~n",[]), 
+ io:format("~p Exports:~n",[?MODULE]), 
  foldl(fun({F,Arity},Acc) -> io:format("~p/~p ",[F,Arity]),"" end, [],user_default:module_info(exports)).
+
+help(Word) when is_atom(Word)->help(atom_to_list(Word));
+
+help(Word) when is_list(Word)->
+ io:format("~p Exports with word :~p ~n",[?MODULE,Word]), 
+ foldl(fun({F,Arity},Acc) -> case inside(atom_to_list(F),Word) of
+                                true -> io:format("~p/~p ",[F,Arity]),
+                                        [{F,Arity}|Acc];
+                                _ ->    Acc 
+                             end   
+       end, 
+ [],
+ ?MODULE:module_info(exports)).
 
 %% build functions
 build()-> ok.
@@ -646,17 +946,50 @@ system_export_to_file()->
 
 % tracing
 
+tracers()-> lists:map(fun(A)-> try tracer_node(A) of R->R catch Err:Reason -> {Err,Reason,A} end end, [ node()| nodes() ]).
+tracer_add()-> lists:map(fun(A)-> tracer_add(A) end, nodes() ).
+
 tracer_off()-> dbg:stop_clear(),dbg:stop().
 
+tracer_node(Node)->
+      dbg:n(Node), 
+      dbg:tracer(Node,all,c).
+
+tracer_add(Node)->
+      dbg:n(Node).
+
+trace_file(FileName)-> dbg:trace_client(file,FileName).
+%trace_ip(Port)-> dbg:tracer(dbg:trace_client(ip,Port),send).
+      % dbg:trace_client(file,pid_to_list(self())++"-trace.log")
+t()-> {ok,Pid}=dbg:tracer(),
+      %P=process_loop(fun(A) -> out({tracer,A}) end),        
+      dbg:p(self(),send).
+
+%t(Node)-> rpc:call(Node,dbg,tracer,[]),       
+%          rpc:call(Node,dbg,p,[self(),send]).
+
+t(Node)-> rpc:call(Node,dbg,tracer,[]),
+          dbg:tracer(),
+          P=process_loop(fun(A) -> out(A) end),
+          dbg:p(P,send),       
+          rpc:call(Node,dbg,p,[P,send]).
+                  
 tracer_on()->
  dbg:tracer(), %% Start the default trace message receiver
  dbg:p(all, c). %% Setup call (c) tracing on all processes
 
-trace(Mod,Fun)->dbg:tp(Mod, Fun, cx). %% Setup an exception return trace (x) on lists:seq
-trace(Mod) when is_atom(Mod) ->dbg:tp({Mod,'_','_'}, cx);
-trace(Pid) when is_pid(Pid) ->dbg:tp(Pid, cx).
+tracer_new()->
+ dbg:tracer(),
+ dbg:p(new,c).
 
-trace_flag(Mod,Flag)->dbg:tp({Mod,'_','_'}, Flag).
+trace(Mod,Fun)               ->dbg:tp(Mod, Fun, cx). %% Setup an exception return trace (x) on lists:seq
+trace(Node,Mod,Fun)          ->dbg:n(Node),
+                               dbg:tp(Node,Mod, Fun, cx). %% Setup an exception return trace (x) on lists:seq
+trace(Mod) when is_atom(Mod) ->dbg:tp({Mod,'_','_'}, cx);
+
+trace(Pid) when is_pid(Pid)  ->dbg:p(pid_to_list(Pid),c).
+
+trace_flag(Mod,Flag)    ->dbg:tp({Mod,'_','_'}, Flag).
 trace_flag(Mod,Fun,Flag)->dbg:tp({Mod,Fun,'_'}, Flag).
 
 trace_off(Mod)    ->dbg:ctp({Mod,'_','_'}).
@@ -783,4 +1116,103 @@ session_apply(Transport,Args,Socket,Timeout)->
      close(Transport,Socket),
      'R'.
 
-     
+publish() -> todo.
+
+backup_system() -> todo.
+backup_user() -> todo.
+
+services()->
+  case os:type() of
+  {_,nt}       -> nice_view(os:cmd("sc queryex "));
+
+   _           -> nice_view(os:cmd("service --status-all"))
+ end.
+
+os_info()-> #{os_type => os:type() , 
+              version => os:version() , 
+              %uname => uname() , 
+              %uptime => uptime(), 
+              ip => ip() , 
+              host => name() , 
+              %route => route() , 
+              machtype => mach_type()}.
+
+uname()->
+   case os:type() of
+  {_,nt}       -> nice_view(os:cmd("version"));
+
+  {unix,_}     -> nice_view(os:cmd("uname -a"));
+  R -> {R,todo, uname}
+ end.
+
+uptime()->
+   case os:type() of
+  {_,nt}       -> nice_view(os:cmd("uptime"));
+
+  {unix,_}     -> nice_view(os:cmd("uptime"));
+  R -> {R,todo, uptime}
+ end.
+
+route()->
+   case os:type() of
+  {_,nt}       -> nice_view(os:cmd("route print"));
+
+  {unix,_}     -> nice_view(os:cmd("route -n| grep -v Kernel | grep -v Destination"));
+  R -> {R,todo, route}
+ end.
+
+mach_type()->
+   case os:type() of
+  {_,nt}       -> os_env("PROCESSOR_IDENTIFIER")++"*"++os_env("NUMBER_OF_PROCESSORS");
+  {unix,_}     -> nice_view(cmd("uname -a")); % -om
+  R -> {R,todo, route}
+ end.
+
+% CLUSTER
+world()      -> net_adm:world().
+names()      -> {ok,L}=net_adm:names(),lists:map(fun({Name,_})-> Name end,L).
+ping(Node)   -> net_adm:ping(Node).
+ping()       -> lists:map(fun(A)-> {A,ping(A)} end, [node()|nodes()]).
+allow(Nodes) -> net_kernel:allow(Nodes).
+world_list(Nodes) -> net_adm:world_list(Nodes).
+world_list() -> L=net_adm:world_list(),
+                lists:map(fun(Node)-> Node end,L).
+
+% communications by IP stack  
+net_connect(gen_udp,Addr,Port) ->
+{ok, S} = gen_udp:open(0, [binary, {active, true}]),                      
+ try gen_udp:connect(S,Addr,Port) of
+  ok    -> {gen_udp,S};
+  R     ->  R
+ catch
+  Err:Reason -> {gen_udp,{Err,Reason},Addr,Port}
+ end;
+
+net_connect(Mod,Addr,Port) ->
+ try Mod:connect(Addr,Port,[{active,true},binary]) of
+ {ok,S} -> {Mod,S};
+  R     ->  R
+ catch
+  Err:Reason -> {Mod,{Err,Reason},Addr,Port}
+ end.
+
+net_send(Mod,S,Bin) -> Mod:send(S,Bin).
+
+net_actor(Mod,Addr,Port,F0) ->
+  {Mod,S} = net_connect(Mod,Addr,Port),
+  ok = Mod:controlling_process(S,spawn(F0)),
+  S.
+
+net_seq(Mod,Addr,Port,F0,SeqList) ->
+  S = net_actor(Mod,Addr,Port,F0),
+  map(fun(A)-> ok = net_send(Mod,S,A) end, SeqList),
+  net_close(Mod,S).
+
+net_close(Mod,S)-> Mod:close(S).
+
+udp_test()->
+ net_seq(gen_udp,{77,88,8,3},53,fun()-> process_loop(fun(Msg)-> out(Msg) end) end,[<<0,0,0,0,0,0,0,0,0>>]).
+
+tcp_test()->
+ net_seq(gen_tcp,"21.ru",80,fun()-> process_loop(fun(Msg)-> out(Msg) end) end,[<<"GET /\n">>]).
+   
