@@ -251,7 +251,69 @@ app(App) -> application:ensure_all_started(App).
 
 s(Module) -> Module:start().
 
-make()-> make:all().
+% compilation
+
+strip()-> lists:map(fun(A)-> {beam_lib:info(A),beam_lib:strip(A)} end, lb()).
+%strip()-> lists:map(fun(A)-> beam_lib:strip(A) end, lb()).
+
+pmake_verbose(Options)-> %make:all().
+         Start = erlang:system_time(),
+         L=le(),
+         Ref=erlang:make_ref(),
+         {ok,Dir} = file:get_cwd(),
+         Parent = self(),
+         R=lists:map(fun(A)-> spawn(fun()->
+                                   STime=erlang:system_time(), 
+                                   Res = make:files([A],Options),
+                                   Parent!#{ file=> A,
+                                             date => {utc, calendar:universal_time()},
+                                             dir  => Dir, 
+                                             compilation_time => {mksec,(erlang:system_time()-STime) / 1000 }, 
+                                             result => Res 
+                                           } 
+                                  end) , 
+                                  receive R-> R end
+                   end, 
+                   L
+                  ),
+          %timer:sleep(1),        
+          #{maketime => {mksec,(erlang:system_time()-Start) / 1000 }, results => R}.        
+         %spawn(fun()->ref_recv_loop(Ref,length(L)) end).
+
+
+pmake()->pmake([]).
+
+pmake(Options)-> %make:all().
+         Start = erlang:system_time(),
+         L=le(),
+         Ref=erlang:make_ref(),
+         {ok,Dir} = file:get_cwd(),
+         R=lists:map(fun(A)-> spawn(fun()->
+                                   STime=erlang:system_time(), 
+                                   Res = make:files([A],Options),
+                                   logger:notice(#{ file=> A,
+                                                    date => {utc, calendar:universal_time()},
+                                                    dir  => Dir, 
+                                                    compilation_time => {mksec,(erlang:system_time()-STime) / 1000 }, 
+                                                    result => Res 
+                                                  }) 
+                                  end)  
+                                  
+                   end, 
+                   L
+                  ),
+          
+          #{maketime => {mksec,(erlang:system_time()-Start) / 1000 }, results => R}.        
+
+
+ref_recv_loop(_,1)  -> true;
+ref_recv_loop(Ref,N)->
+ receive
+  Msg    -> logger:notice(#{ msg => Msg})
+%  {From,Ref,Msg}    -> logger:notice(#{ n=> N, ref => Ref, msg => Msg})
+ end, 
+ ref_recv_loop(Ref,N-1).
+
 c()->    nice_view(os:cmd("erlc *.erl")).
 
 mkdir(Dir)->
@@ -348,9 +410,13 @@ lf2(F2,Ext)->
     end).
 
 % 
-ends(Name,Ext)-> 
-% io:format("~p ~p ~n",[length(Name)-length(Ext),string:str(Name,Ext)]),
- string:str(Name,Ext) == (length(Name) - length(Ext) + 1).
+%ends(Name,Ext)-> 
+%% io:format("~p ~p ~n",[length(Name)-length(Ext),string:str(Name,Ext)]),
+% string:str(Name,Ext) == (length(Name) - length(Ext) + 1).
+
+ends(Name,Ext)->
+ %io:format("string:str =~p ",[string:str(Name,Ext)]),
+ string:str(Name,Ext) > 0 andalso (string:str(Name,Ext) == length(Name) - length(Ext) +1).
 
 starts(Name,Ext)-> 
 % io:format("~p ~p ~n",[length(Name)-length(Ext),string:str(Name,Ext)]),
@@ -370,16 +436,17 @@ init_prompt()   ->
       %code:load_abs("./user_default"), 
       %shell:history(100),
       %shell:results(1000),
+      %seq_trace:set_system_tracer(spawn(fun(A)-> recv_loop(fun(A)-> logger:notice(#{date => {date(), time() , erlang:system_time() } , msg =>A }) end) end)),
       msacc:start(),
       %error_handler:undefined_function(?MODULE,undefined_function,[info,f,[3]]),
       %error_handler:undefined_lambda(?MODULE,undefined_lambda,[info,2,3]),
       shell:prompt_func({?MODULE,hook}).
 
 %undefined_function(M,F,Arg)->
-%	logger:critical(#{module => M, function => F, args => Arg, reason => "undefined function", exports => M:module_info(exports)}).
+%	logger:notice(#{module => M, function => F, args => Arg, reason => "undefined function", exports => M:module_info(exports)}).
 %
 %undefined_lambda(M,F,Arg)  ->
-%	logger:critical(#{module => M, function => F, args => Arg, reason => "undefined lambda"}).
+%	logger:notice(#{module => M, function => F, args => Arg, reason => "undefined lambda"}).
 
 %return cluster or node statisctics
 stats(Node)-> 
@@ -449,24 +516,6 @@ apply({Node,M,F,A})   -> rpc:call(Node,M,F,A);
 apply({M,F,{at,Nth}}) -> apply(M,F,[get(Nth)]);
 apply({M,F,A})        -> apply(M,F,A).
 
-% archive operations
-
-zip_ls(Zip)-> zip:list_dir(Zip).
-
-zip(Zip,FileList)-> zip:zip(Zip,FileList).
-zip(FileorDir)-> zip:zip(FileorDir++".zip",[FileorDir]).
-zip()->
- {ok,CWD} = file:get_cwd(),
-  [Zip|_] = lists:reverse(string:tokens(CWD,"/\\")),
-   file:set_cwd(".."),
-   zip(Zip),
-  out("../"++Zip++".zip created\n"),
-  file:set_cwd(CWD).
- 
-unzip(Zip)-> zip:unzip(Zip).
-
-untgz(Arhive)-> nice_view(os:cmd("tar xvfz "++Arhive)).
-untar(Arhive)-> nice_view(os:cmd("tar xvf "++Arhive)).
 
 % push Value to Key if it unique
 push(Key,Value)-> L = case get(Key) of
@@ -518,10 +567,16 @@ cat(File,LDelims,FSep)->
 lines(File)->{ok,F}=file:open(File,[read]),
              file:close(F).
 
-stdout(F0) when is_function(F0,0)-> 
-           {ok,F} = file:open("stdout.txt",[write]),
+stdout(Term) -> stdout(Term,"stdout.txt").
+
+stdout(F0,FileName) when is_function(F0,0)-> 
+           {ok,F} = file:open(FileName,[write,append]),
            io:format(F,"~p.~n",[F0()]),
-           file:close(F). 
+           file:close(F); 
+
+stdout(Term,FileName) -> {ok,F} = file:open(FileName,[write,append]),
+                io:format(F,"~p.~n",[Term]),
+                file:close(F). 
 
 stdout(M,F,A) when is_atom(F) and is_atom(M) and is_list(A) -> 
            {ok,FD} = file:open("stdout.txt",[write]),
@@ -585,6 +640,80 @@ ed(File) ->
   {_,"x11",{unix,_} }    -> spawn( fun()-> os:cmd("mousepad " ++to_filename(File)) end)
 
  end.
+
+% source files formatter
+tidy(Path)-> erl_tidy:dir(Path).
+tidy()-> tidy(".").
+
+%create makefile
+create_makefile() -> 
+        % it need to check existence of Emakefile and rename it if needed
+        mv("Emakefile","Emakefile.old."++integer_to_list(erlang:system_time(),32)),
+	Content=
+	{'./src/*', 
+ 	[debug_info, 
+	{outdir, "./ebin"},  
+	{i, "./include/."}
+ 	]
+	},
+ 	
+        {ok,F} = file:open("Emakefile",[write]),
+	 io:format(F,"~p~n.",[Content]),
+	 file:close(F).
+
+add_history(Item) -> 
+	Content = 
+	#{ date  => calendar:universal_time(),
+	   works => Item 
+	 },
+ 	
+        {ok,F} = file:open("HISTORY",[write,append]),
+	 io:format(F,"~p.~n~n",[Content]),
+	 file:close(F).
+
+%create application file
+create_application(App)->
+	AppStr=atom_to_list(App),
+
+	Content={application, App,
+ 	[{description, "A "++AppStr++" application"},
+	  {vsn, "0.0.0"},
+	  {registered, []},
+	  {mod, {list_to_atom(AppStr++ "_app"), []}},
+	  {applications,
+	   [kernel,
+ 	   stdlib
+ 	  ]},
+ 	 {env,[]},
+ 	 {modules, []},
+	
+ 	 {maintainers, []},
+ 	 {licenses, ["Apache 2.0"]},
+ 	 {links, []}
+ 	]},
+ 	
+        {ok,F} = file:open(AppStr++".app",[write]),
+	 io:format(F,"~p~n.",[Content]),
+	 file:close(F).
+
+% archive operations
+
+zip_ls(Zip)-> zip:list_dir(Zip).
+
+zip(Zip,FileList)-> zip:zip(Zip,FileList).
+zip(FileorDir)-> zip:zip(FileorDir++".zip",[FileorDir]).
+zip()->
+ {ok,CWD} = file:get_cwd(),
+  [Zip|_] = lists:reverse(string:tokens(CWD,"/\\")),
+   file:set_cwd(".."),
+   zip(Zip),
+  out("../"++Zip++".zip created\n"),
+  file:set_cwd(CWD).
+ 
+unzip(Zip)-> zip:unzip(Zip).
+
+untgz(Arhive)-> nice_view(os:cmd("tar xvfz "++Arhive)).
+untar(Arhive)-> nice_view(os:cmd("tar xvf "++Arhive)).
 
 %% http operations
 -define(AGENTS,
@@ -1215,4 +1344,9 @@ udp_test()->
 
 tcp_test()->
  net_seq(gen_tcp,"21.ru",80,fun()-> process_loop(fun(Msg)-> out(Msg) end) end,[<<"GET /\n">>]).
+
+net()-> #{net   => net:if_names(),
+          inet  => inet:getifaddrs(),
+          nodes => [node()|nodes()]  
+         }.
    

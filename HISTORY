@@ -1,0 +1,13 @@
+#{date => {{2020,6,22},{7,25,9}},
+  works => "make()-> pmake() for make project in parallel style."}.
+
+#{date => {{2020,6,25},{3,26,12}},
+  works =>
+      "Joined function strip() for removing debug information from *.ebin files"}.
+
+#{date => {{2020,6,27},{5,12,55}},works => "fixed bug in ends/2 function"}.
+
+#{date => {{2020,6,27},{5,20,26}},
+  works =>
+      "add pmake(Options) and pmake_verbose(Options) commands. Options like for call make:files/2 function."}.
+

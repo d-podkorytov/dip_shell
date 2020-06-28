@@ -1,5 +1,4 @@
 % Installer for Dip Shell
-
 -module(dip_shell).
 -compile(export_all).
 
